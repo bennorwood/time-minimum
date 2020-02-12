@@ -171,6 +171,26 @@ You have a 2 things you can tweak here. A naive solution would be to do the proc
 
 So, if you've minimized the amount of time it takes program A to process the file and it takes less than 15 minutes you can use AWS lambda to do the processing. If program A takes longer than 15 minutes, you'll have to containerize Program A and run it via AWS batch.
 
+## 4. Business Strategy
+What are your 2-3 priorities for the year, and how do you plan to tactically execute on them? 
+
+1. You need the right level of attribution for your users and infrastructure in addition to capturing and logging key events (How are we capturing metrics).
+   You can't really make a data decision without any data. So at the infrastructure level what does it mean for the application to be "up" vs. "down" and how can we measure and have the right alarms in place to ensure uptime? How much revenue is lost per hour of "down" time? What do peak periods look like where uptime is critical? How secure is the infrastructure? Are there SLAs for our user experience? Are there different SLAs for different user types? At the application level how engaged are the users for feature X,Y,Z? Can we identify typical user behavior? Can we identify behavior when the user experience is less than great?
+
+2. To minimize the cost of technology and infrastructure while maintaining scale.
+   - What's the most expensive technology cost? Is there a more cost effective tool for the job that doesn't compromise stability? Replace _safely_. Repeat.
+   - Is there "low hanging fruit" in a sense where we can see immediate savings from the push of a button or very minimal effort? (AWS Savings Plans for example)
+
+3. To build a safe, livable engineering platform that enables speed of feature work and deployments.
+    1. Lower the time to fist commit (Look to improve the following):
+      - How well-organized is the code base?
+      - How much confidence do we have in our test suite?
+      - How is the developer environment?
+    2. Continuous Deployments
+      - How mature is the CI process?
+      - How mature is the CD process?
+    3. Identify knowledge gaps for reasonable training opportunities
+
 ## General AWS Notes
 1. SLA on SNS/SQS (99.9% uptime guaranteed): https://aws.amazon.com/messaging/sla/
 2. SLA on S3 (99.9% uptime guaranteed): https://aws.amazon.com/s3/sla/
