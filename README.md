@@ -73,9 +73,7 @@ Example Loyalty Program
         "name": "Bubba Gump Shrimp Co.",
         "id": "<unique id>",
         "timezone": "America/Chicago",
-        "associated_users_list": {
-            "0123-afw-13": { firstname: "Jimmy", "lastname": "Dean", /* etc */ }
-        }
+        "associated_users": "<location in S3>"
         // etc
     }
 }
@@ -93,13 +91,25 @@ Example Loyalty Campaign
     "data" : {
         "request_url" : "/loyalty-programs/1234/campaigns/<unique id>",
         "name": "Lenten Special!",
-        "email_template_name": "bubba_gump_lenten_special",
         "target": {
-            // Customers that have ordered after midnight January 1, 2020 UTC
-            "last_order_date": "2020-01-01T00:00:00Z",
-            // Customers that have spent over $50
-            "gross_spent": "50"
-            // etc
+            "drip": [
+                {
+                    "email_template_name": "bubba_gump_lenten_special",
+                    "schedule": "30 6 L * ? *",
+                    "end_date": "2020-03-12T00:00:00Z",
+                    "start_date": "2020-01-12T00:00:00Z",
+                    // Customers that have spent over $50
+                    "gross_spent": "50"
+                },
+                {
+                    "email_template_name": "bubba_gump_lenten_special_blitz",
+                    "schedule": "* * 1/10 * ? *", // every 10 days
+                    "start_date": "2020-03-12T00:00:00Z",
+                    "end_date": "2020-04-12T00:00:00Z",
+                    // Customers that have ordered after midnight January 1, 2020 UTC
+                    "last_order_date": "2020-01-01T00:00:00Z",
+                }
+            ]
         }
     }
 }
@@ -118,9 +128,11 @@ Example Loyalty Campaign
 
 _Note: SNS allows you to filter messages so this implementation is flexible if there are complex campaigns where we'd need non-trivial processing. https://docs.aws.amazon.com/sns/latest/dg/sns-subscription-filter-policies.html_
   
-The deliverable for this class of lambda is a dynamodb dump of enriched data to know if a customer successfully qualifies as a target for the (loyalty program X, loyalty campaign Y). This lambda's responsibility is also to push a message to the ESQ handler queue for email processing.
+The deliverable for this class of lambda is a dynamodb dump of enriched data to know if a customer successfully qualifies as a target for the (loyalty program X, loyalty campaign Y). So the information in dynamo should be something like (loyalty, campaign, drip, customer, last_email_notification). We can set TTL for this data to be the end of the campaign.
 
- 4. SQS + AWS Lambda ESP Handler: This lambda is responsible for throttling ALL requests to the ESP. Since its a polling based process, the lambda has control over how many messages it processes per minute. This is important since a lot of integrations have rate limiting concerns. The max retention period for SQS is 14 days, meaning that the system would have to have so much queue backup to where a message sits in a queue for 14 days before being "lost". If this was a concern utilizing the dynamo table or S3 to store this information would be ideal. This lambda should work with a generic message schema to be utilized for any ESQ related work. This _could_ also be leveraged any time we'd want to send emails.
+ 4. Dynamo + Lambda [Drip Campaign Poller]: Thought about this one after the initial email. We'd need to store enough information to know how often we should send emails to customers. This lambda simply queries dyanmo for active (loyalty, campaign, drip, customer, last_email_notification) data and then queues it all for the ESP handler to poll over time. The trigger for this lambda would be on a cron schedule.
+
+ 5. SQS + AWS Lambda ESP Handler (Possibly SES): This lambda is responsible for throttling ALL requests to the ESP. Since its a polling based process, the lambda has control over how many messages it processes per minute. This is important since a lot of integrations have rate limiting concerns. The max retention period for SQS is 14 days, meaning that the system would have to have so much queue backup to where a message sits in a queue for 14 days before being "lost". If this was a concern utilizing the dynamo table or S3 to store this information would be ideal. This lambda should work with a generic message schema to be utilized for any ESQ related work. This lambda should update dynamo to indicate last time customer has been engages with email.
 
 Example event body that will send SES templated email
 ```
