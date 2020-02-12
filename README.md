@@ -54,6 +54,7 @@ Note:
 #### Main concerns
  1. Throttling messages to Email sender
  2. Maximizing Concurrency of loyalty campaign member processing
+ 3. Stick with Managed AWS solutions for scale/reliability/speed of development
 
 #### Design using AWS
  1. S3 [Loyalty Program + Campaign Storage]: I would use S3 to track loayalty program information. It's cheap (~0.02/GB/month), secure (if you set it up right) and language agnostic. Meaning a PHP or Python app can stream loyalty information securely to an S3 bucket, and the consumers that depend on this information can be written a different language entirely. Each loyalty program may have any number of campaigns with an email template and some way to describe the rules to determine if a customer is a target in a loyalty programs campaign. All of the campaign information can be reasonably represented with JSON. I suggest an event standard: https://github.com/cloudevents/spec/blob/master/json-format.md#32-examples
@@ -155,8 +156,22 @@ Example event body that will send SES templated email
   TemplateArn: 'STRING_VALUE'
 }
 ```
+## 3. Process Large CSV files
+How would you design a system to process large .csv files (upto 100k rows) which needs to be uploaded and parsed row by row. Each row has customer demographic data independent from each other.
 
-#### Notes
+### Assumptions
+ - We know when the file is updated and the processing can happen safely after without worrying about the file updating mid-process.
+ - Its accessible in AWS via S3
+
+### Solution
+Use nodejs stream processing. You don't load the entire file into memory, you only process a chunk at a time until you are finished. Node stream processing is also event based and not synchronous.
+
+#### The challenge here is really how long does it take to do the processing.
+You have a 2 things you can tweak here. A naive solution would be to do the processing at the same time you are reading the file...if you do this you're adding time complexity to complete the processing. Ideally, you'd want to think about a mapping solution to where program A's single responsibility is to stream the contents of the large file into a queue for processing in program B (as fast as possible). The memory consuption for Program A remains constant since you'll never attempt to read the entire file in memory. Program B should _ideally_ be able to run concurrently and is entirely independent from the processing in A. If there are requirements to provide some aggregate data, then Program B should be able to dump this information in something like a DynamoDB table that can be used for downstream data aggregation/enrichment.
+
+So, if you've minimized the amount of time it takes program A to process the file and it takes less than 15 minutes you can use AWS lambda to do the processing. If program A takes longer than 15 minutes, you'll have to containerize Program A and run it via AWS batch.
+
+## General AWS Notes
 1. SLA on SNS/SQS (99.9% uptime guaranteed): https://aws.amazon.com/messaging/sla/
 2. SLA on S3 (99.9% uptime guaranteed): https://aws.amazon.com/s3/sla/
 3. AWS FAQ on SQS/SNS Scalability (https://aws.amazon.com/sqs/faqs/ https://aws.amazon.com/sns/faqs/): Amazon SQS requires no administrative overhead and little configuration. Amazon SQS works on a massive scale, processing billions of messages per day. You can scale the amount of traffic you send to Amazon SQS up or down without any configuration. Amazon SQS also provides extremely high message durability, giving you and your stakeholders added confidence. Amazon SQS and SNS are lightweight, fully managed message queue and topic services that scale almost infinitely and provide simple, easy-to-use APIs. You can use Amazon SQS and SNS to decouple and scale microservices, distributed systems, and serverless applications, and improve reliability.
